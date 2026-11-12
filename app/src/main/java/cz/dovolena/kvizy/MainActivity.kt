@@ -8,6 +8,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.View
 import android.view.WindowManager
 import android.webkit.CookieManager
@@ -23,12 +24,22 @@ import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
+import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
 
     companion object {
         private const val START_URL = "https://dovolena-krkonose.vercel.app"
         private const val ALLOWED_HOST = "dovolena-krkonose.vercel.app"
+        private const val ORIGIN = "https://dovolena-krkonose.vercel.app"
+
+        /** Měřítko stránky na TV (1.0 = jako dosud, menší = oddálenější). */
+        private const val PAGE_SCALE = 0.75f
+
+        /** Za jak dlouho se musí Zpět stisknout podruhé, aby se aplikace zavřela. */
+        private const val EXIT_CONFIRM_MS = 2500L
     }
 
     private lateinit var webView: WebView
@@ -37,6 +48,10 @@ class MainActivity : ComponentActivity() {
 
     /** Nastaví se, když hlavní stránka selže při načítání (typicky bez internetu). */
     private var mainFrameFailed = false
+
+    /** Skript s úpravami pro ovladač (assets/tv.js). */
+    private lateinit var tvScript: String
+    private var lastBackPress = 0L
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,23 +73,30 @@ class MainActivity : ComponentActivity() {
             domStorageEnabled = true          // localStorage – pamatuje si přihlášení správce
             mediaPlaybackRequiresUserGesture = false
             setSupportMultipleWindows(false)  // target="_blank" se otevře ve stejném WebView
+            // Oddálení: stránka se rozvrhne do širšího viewportu a zmenší se na šířku obrazovky.
+            useWideViewPort = true
+            loadWithOverviewMode = true
+            setSupportZoom(false)
             userAgentString = "$userAgentString KvizyTV"
         }
         webView.setBackgroundColor(getColor(R.color.bg_dark))
         webView.webChromeClient = WebChromeClient()
+
+        val dm = resources.displayMetrics
+        val layoutWidth = (dm.widthPixels / dm.density / PAGE_SCALE).roundToInt()
+        tvScript = assets.open("tv.js").bufferedReader().use { it.readText() }
+            .replace("__LAYOUT_WIDTH__", layoutWidth.toString())
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            WebViewCompat.addDocumentStartJavaScript(webView, tvScript, setOf(ORIGIN))
+        }
         webView.webViewClient = GameWebViewClient()
 
         retryButton.setOnClickListener { retry() }
 
-        // Zpět = historie WebView, na začátku historie zavřít aplikaci.
+        // Zpět: nejdřív ho zkusí zpracovat web (zavřít okno, opustit posuvník, tlačítko „← Zpět“),
+        // pak historie WebView, a nakonec zavření aplikace po druhém stisku.
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (offlineView.visibility != View.VISIBLE && webView.canGoBack()) {
-                    webView.goBack()
-                } else {
-                    finish()
-                }
-            }
+            override fun handleOnBackPressed() = onBack()
         })
 
         if (savedInstanceState != null) {
@@ -121,6 +143,27 @@ class MainActivity : ComponentActivity() {
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
+    private fun onBack() {
+        if (offlineView.visibility == View.VISIBLE) {
+            finish()
+            return
+        }
+        webView.evaluateJavascript("window.__kvizyTvBack ? window.__kvizyTvBack() : false") { handled ->
+            if (handled == "true") return@evaluateJavascript
+            if (webView.canGoBack()) {
+                webView.goBack()
+                return@evaluateJavascript
+            }
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastBackPress < EXIT_CONFIRM_MS) {
+                finish()
+            } else {
+                lastBackPress = now
+                Toast.makeText(this, R.string.press_back_again, Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -192,6 +235,10 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun onPageFinished(view: WebView, url: String?) {
+            // Záloha pro starší WebView bez skriptů při startu dokumentu (skript se nevloží dvakrát).
+            if (!mainFrameFailed && url != null && isAllowed(Uri.parse(url))) {
+                view.evaluateJavascript(tvScript, null)
+            }
             if (mainFrameFailed) showOffline() else showWeb()
         }
 

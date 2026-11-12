@@ -5,4 +5,5 @@
     <string name="offline_text">Zkontrolujte připojení boxu k internetu.</string>
     <string name="offline_retry">Zkusit znovu</string>
     <string name="external_link_blocked">Tento odkaz nelze v aplikaci otevřít.</string>
+    <string name="press_back_again">Pro ukončení stiskněte Zpět ještě jednou</string>
 </resources>

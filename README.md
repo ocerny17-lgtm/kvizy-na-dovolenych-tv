@@ -10,6 +10,11 @@ Ovládá se šipkami, OK a Zpět na ovladači – zvýraznění prvků řeší s
 - tlačítko Zpět = zpět v historii webu, na úvodní stránce zavře aplikaci
 - odkazy mimo `dovolena-krkonose.vercel.app` se ve WebView neotevřou
 - bez internetu se ukáže „Není připojení“ s tlačítkem **Zkusit znovu**
+- stránka je na TV oddálená na 75 % (konstanta `PAGE_SCALE` v `MainActivity.kt`)
+- z posuvníků (počet týmů, kol…) se jde ven šipkou nahoru/dolů, vlevo/vpravo mění hodnotu
+- Zpět: zavře otevřené okno → opustí posuvník/textové pole → klikne na „← Zpět“ na obrazovce;
+  v hlavním menu nebo během hry je pro zavření aplikace potřeba stisknout Zpět dvakrát
+- úpravy pro ovladač jsou ve skriptu `app/src/main/assets/tv.js`, který aplikace vkládá do webu
 - web pozná aplikaci podle `KvizyTV` na konci User-Agentu
 
 ## Přímý odkaz ke stažení
