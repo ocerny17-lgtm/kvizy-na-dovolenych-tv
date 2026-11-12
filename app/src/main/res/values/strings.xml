@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Kvízy na dovolených</string>
+    <string name="offline_title">Není připojení</string>
+    <string name="offline_text">Zkontrolujte připojení boxu k internetu.</string>
+    <string name="offline_retry">Zkusit znovu</string>
+    <string name="external_link_blocked">Tento odkaz nelze v aplikaci otevřít.</string>
+</resources>
